@@ -2158,14 +2158,6 @@ const Home = () => {
           <DialogHeader className="sr-only">
             <DialogTitle>Why We Build LogicLot</DialogTitle>
           </DialogHeader>
-<<<<<<< HEAD
-          <div className="relative aspect-video w-full flex items-center justify-center bg-black">
-            <video
-              src="/videos/launch.mp4"
-              controls
-              autoPlay
-              className="w-full h-full object-contain"
-=======
           <div className="relative aspect-video w-full">
             <iframe
               className="w-full h-full"
@@ -2173,7 +2165,6 @@ const Home = () => {
               title="Why We Build LogicLot"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
->>>>>>> 0f1c1fd68be7d4bc4245db7eb0a6931748b74723
             />
           </div>
         </DialogContent>
