@@ -1,0 +1,183 @@
+--- Page 1 ---
+LogicLot Landing Page — Change Requests 
+Prepared for developer handoff · logiclot.ai V1 preview review · June 20, 2026 
+This document lists every change needed on the current landing page preview before it's approved. Items are
+grouped by priority. The six items marked   CONTENT ERROR   are not cosmetic — they describe product
+capabilities and integrations that do not exist and need to come down regardless of anything else in this list. 
+CONTENT ERROR   Inaccurate / fabricated claim — fix before anything else 
+DELETE   Remove section entirely — not applicable to LogicLot 
+UI / STYLE   Visual / design change 
+COPY   Wording / messaging change 
+1   Content Errors — Fix First 
+1.1. Wrong auction listed as fully supported — IAA is missing and
+misspelled 
+CONTENT ERROR 
+The “Parse run lists from all major auctions” section lists   Manheim, ADESA, CarMax, and “Americas Auto
+Auction”   as the four fully-supported auctions, each with its own logo card and a “FULLY SUPPORTED” badge.
+LogicLot's actual V1 auction support is   Manheim, ADESA (Openlane), CarMax Auctions, and IAA . “Americas
+Auto Auction” is not a V1-supported auction and should not appear as a primary card.
+IAA is currently relegated to the small “+ More supported” footnote at the bottom of the card list, and is misspelled
+there (see 1.2 for every instance and the correct spelling). 
+Fix:   Replace the “Americas Auto Auction” card with an   IAA   card, give it the same “FULLY SUPPORTED” /
+“AUTO-PARSE” badge treatment as Manheim, ADESA, and CarMax, and remove Americas Auto Auction from the
+primary four entirely (it can move to the “more supported” footnote if anywhere). 
+1.2. “IAA” is misspelled in multiple places sitewide   CONTENT ERROR 
+The correct auction name is   IAA   (Insurance Auto Auctions). The current build spells it incorrectly as “IAAI” in
+several places — IAAI is their website domain (iaai.com), not the company name. Find every instance across the
+site and correct it to   IAA   — this includes the “+ More supported” footnote on the auctions section, the “IAAI &
+Auction Parsing” feature card (in the section being deleted per 2.1, but check for the same text reused elsewhere),
+and the FAQ / “Upload your run lists” step description (“Drop PDF or CSV wholesale run lists from Manheim,
+ADESA, CarMax, or IAAI”).
+Do a sitewide find for the auction name and confirm every instance is spelled   IAA   — not IAAI or any other variant. 
+1.3. “Max Bid Calculator” section uses a formula that does not match the
+product 
+CONTENT ERROR 
+The “Meet your secret weapon, LogicLot Calculator” section shows a “Profit Equation Breakdown” that computes
+Max Bid as: Est. Retail Comp Average   −   Dealer Profit Margin Reserve (15%)   −   Est. Segment Reconditioning   −   Est.
+Auction Buyer Fee = Recommended Max Bid.
+This formula does not exist anywhere in LogicLot's actual spec. The real adjustment logic is the history-report flag
+system (Salvage   − 30%, Rebuilt   − 25%, Major Accident   − 10%, Lemon Buyback   − 15%, TMU   − 25%, stacked and
+capped at   − 60%) which adjusts retail value, which then flows into max bid — there is no “15% margin reserve”, 
+--- Page 2 ---
+“segment reconditioning”, or “auction buyer fee” constant in the spec.
+The vehicle list in this section (“Luxury Midsize SUV,” “Premium Hybrid Sedan,” “3.2 CR” condition-report
+shorthand) is also generic placeholder content, not representative of how real run list data (VIN, make/model/trim,
+mileage, CR score) appears elsewhere on the product. 
+Decision needed from us, not just the dev:   either remove this section for V1, or rebuild it to accurately reflect the
+real history-flag adjustment logic. Flagging this rather than just deleting it since it could be a useful section if it's
+accurate — we should decide together before the dev rebuilds it. 
+1.4. “Customize everything with integrations” section lists integrations that
+don't exist 
+CONTENT ERROR 
+This section claims live integrations with   vAuto DMS Sync, DealerSocket CRM, Carfax Valuation, QuickBooks,
+and Supabase DB , plus a claim of “Explore 21,000+ API connections.”
+None of these integrations exist in the current build or spec. Supabase is an internal infrastructure choice (if used
+at all), not a customer-facing integration. Carfax/AutoCheck integration is explicitly listed as out-of-scope for V1 in
+the product spec.
+This is a false advertising risk if it goes live as-is — delete this entire section (see 2.2). 
+1.5. “AI co-pilot” section references MMR, not our actual data source   CONTENT ERROR 
+The “Your dealership has entered the AI age” section's “Universal Parser Live Output” panel includes a line item
+labeled   “MMR valuation mapping”   with a “Comp matches found” status.
+LogicLot's actual retail value / comp data source is   MarketCheck   (via
+/v2/predict/car/us/marketcheck_price/comparables), not MMR. MMR is a Manheim-specific valuation product we
+don't use or integrate with. Replace “MMR valuation mapping” with something accurate, e.g. “Retail comp
+matching” or “MarketCheck valuation lookup.”
+The other two line items in this panel (“VIN scan OCR logic,” “Fallback tier applied”) are directionally fine and don't
+need to change, just the MMR reference. 
+1.6. “Source more in more places” section references a “Bidding
+Companion app” that doesn't exist 
+CONTENT ERROR 
+The “Bid face to face” feature card under “Source more in more places” says: “Bid in person and keep online and
+in-lane target bounds in sync with the Bidding Companion app.” There is no mobile/companion app in our product
+— LogicLot is the web platform only.
+Remove the “Bidding Companion app” reference. If we want to keep a card about in-person bidding, rewrite it
+around what the product actually does (e.g. printable/exportable lane bid sheets, which is a real feature in the
+pricing comparison table), not a nonexistent app. 
+2   Sections to Delete 
+2.1. Delete “The dealership platform built to convert” section   DELETE 
+This is the three-card section with “Universal List Parser,” “Margin Calibrator,” and “Cascading Fallback Calc.” Not
+needed — remove entirely. 
+2.2. Delete “Customize everything with integrations” section   DELETE 
+Remove this entire section, including the “21,000+ API connections” link. See 1.4 for why — the listed integrations
+are fabricated and not just unnecessary. 
+--- Page 3 ---
+2.3. Remove business address from the footer   DELETE 
+Remove the business address shown at the bottom of the page footer. 
+2.4. Delete “Traditional Sourcing vs. LogicLot Sourcing” comparison section   DELETE 
+Remove this entire two-column comparison section (the “Traditional Sourcing” red-X list vs. “LogicLot AI Sourcing”
+green-check list). Not needed for V1. 
+2.5. Delete the entire current Pricing page and rebuild it   DELETE 
+Whatever currently renders when a visitor clicks “Pricing” in the nav should be deleted entirely and replaced. See
+Section 5 below for what the new Pricing page should contain — we already have a finalized reference design the
+dev should build from. 
+3   UI / Style Changes 
+3.1. Top navigation bar should match Shopify's floating style — not a pill
+container 
+UI / STYLE 
+Reference: shopify.com navigation. On Shopify, the nav links (“Why Shopify,” “Products,” “Pricing,” “Enterprise”) sit
+directly on the dark background with no rounded pill or container behind them. Only the action items on the right
+(“Log in” text link and “Start for free” button) are distinct elements, and the button is a plain white pill — no extra
+outer pill wrapping the whole nav.
+LogicLot's current nav wraps the entire link group in a large rounded pill/oval, and individual items look boxed-in
+rather than floating. Remove the outer container so the logo and nav links float freely against the dark background,
+matching Shopify's treatment, and keep only the CTA button as a standalone pill. 
+3.2. Recommendation: tone down the AI-buzzword visual treatment for a dealer
+audience 
+UI / STYLE 
+Our target buyer (Used Car Director, Pre-Owned Manager, Dealer Principal) is not a SaaS/tech buyer. The current
+page's reliance on a Shopify-style “tech startup” aesthetic (neon purple glow, “AI co-pilot,” “intelligent companion,”
+“edge network,” “serverless runners”) reads more like an AI/dev-tools product than a tool built for car dealers.
+Recommend keeping the dark theme (it photographs well and feels premium) but replacing jargon-heavy section
+titles and copy with plain, dealer-recognizable language throughout — see Section 6 for specific copy fixes. This is
+a broader pass the dev should apply to any remaining section not explicitly listed below. 
+3.3. Simplify the top nav to four items: Home, Why LogicLot, Pricing, Contact   UI / STYLE 
+The current nav has extra items (e.g. “Products” dropdown, “Sign In”). Reduce the nav to exactly four links:   Home,
+Why LogicLot, Pricing, Contact , plus the single CTA button (see 4.1 for its new label). Remove “Sign In” and any
+“Products” dropdown from the top nav. 
+3.4. “Contact” should open a contact form pop-up, not navigate to a page   UI / STYLE 
+Clicking “Contact” in the nav should open a pop-up / modal directly on the page, not route to a separate contact
+page.
+The pop-up should contain four fields:   Full Name, Email Address, Phone Number, and Message , plus a submit
+button. Dev's choice on backend (e.g. send to info@logiclot.ai, or pipe into HubSpot as a new contact/activity) —
+flag whichever approach is simplest for V1 and we'll confirm. 
+3.5. Logo is missing its sharp corners   UI / STYLE 
+--- Page 4 ---
+The LogicLot logo currently rendering in the nav bar has rounded/soft corners. The correct logo mark has sharp
+corners. Swap in the correct version of the logo file everywhere it appears on the site. 
+3.6. Remove Edge Pipeline and Copart from the auctions list; add a proper IAA
+logo card 
+UI / STYLE 
+Remove   Edge Pipeline   and   Copart   from the auctions/compatibility section — neither is a supported auction and
+they shouldn't appear anywhere on the page, including the “+ More supported” footnote called out in item 1.2.
+In their place, add a proper   IAA   card with its real logo, matching the visual treatment given to Manheim, ADESA,
+ADESA Canada, Manheim Express, and CarMax (logo mark, name, “COMPATIBLE” / “FULLY SUPPORTED”
+badge as appropriate to that section). 
+3.7. Brighten the hero background video   UI / STYLE 
+The auction-lot background video behind the hero text on the homepage is too dark. Brighten it so the lot and
+vehicles are more visible — currently it's dark enough that the footage reads almost as a static dark texture rather
+than recognizable auction-lot footage.
+Keep enough contrast that the hero text (“Be the next [headline]”) and the CTA buttons stay easily readable on top
+of it — increase the video's brightness/exposure first, and only add a dark overlay back on top if needed for text
+legibility, rather than leaving the current heavy dark treatment as-is. 
+5   Pricing Page Rebuild 
+5.1. Replace the Pricing page with our finalized pricing reference   UI / STYLE 
+We already sent the dev a finalized pricing reference design (LogicLot_Pricing_Final_v2.pdf) showing three tier
+cards above a full feature-comparison table. The new Pricing page should follow that layout: a card per tier (price,
+billing cadence, upload allowance, one short value line), followed by a feature-by-feature comparison table with
+checkmarks per tier. 
+Important — before the dev builds this, we need to confirm final tier numbers ourselves.   The reference PDF
+shows SMB $199/mo (2 uploads/day), Mid $399/mo (6 uploads/day), and Enterprise as “Contact Sales” with
+unlimited uploads. Our actual finalized pricing is   Independent $199/mo (2 uploads/day), Midsize $399/mo (5
+uploads/day, up to 3 users), and Franchise $799/mo (unlimited uploads/users, dedicated account manager) 
+— a flat published price, not “Contact Sales.” Reconcile the reference PDF's numbers against this before handing it
+to the dev so we don't ship two different sets of pricing. 
+6   Copy / Messaging Changes 
+6.1. Change “Start for free” to “Get Started” everywhere   COPY 
+LogicLot has no free trial — “Start for free” is inaccurate and sets the wrong expectation. Replace every instance of
+this button label sitewide (nav bar, hero, footer, any other CTA) with   “Get Started.” 
+6.2. Rewrite the hero subheading — not dealer-relatable   COPY 
+Current copy: “Dream big and buy fast on LogicLot. The auto industry's most robust and best-converting vehicle
+sourcing intelligence platform.”
+This doesn't say what the product does and uses SaaS-marketing language (“best-converting,” “sourcing
+intelligence platform”) a dealer wouldn't use themselves. Suggested replacement, pulled from language already
+validated in our own outreach playbook:   “Upload your auction run list and know exactly which cars to bid on 
+--- Page 5 ---
+— in minutes, not hours.”   Open to a different version, but it should name the actual action (upload a run list) and
+the actual payoff (minutes not hours) in the first sentence. 
+6.3. Rename or rewrite the “Live Sourcing Feed” hero widget label   COPY 
+“Live Sourcing Feed” doesn't mean anything concrete to a dealer and sounds like a generic SaaS dashboard
+widget name. Suggested replacement:   “Today's Run List Activity”   or   “Auction Activity”   — something that
+maps directly to the run-list-upload action dealers actually take. The line items underneath (“Active Run Lists,”
+“Parsed Vehicles,” “Average Comp Radius,” “Dealership Margin Reserves”) should be reviewed too: “Average
+Comp Radius” and “Dealership Margin Reserves” aren't concepts in our spec and read as filler stats — replace
+with real metrics (e.g. run lists analyzed, cars flagged as buys) or remove the widget. 
+6.4. General instruction to the dev: review all remaining copy for dealer
+relevance 
+COPY 
+Beyond the specific lines above, several other sections use invented stats, vague tech jargon, or placeholder
+customer stories (e.g. “Sarah Miller launched Miller Auto Sales,” “Apex Auto Group” in the “For anyone from
+independent lots to enterprise” section) that aren't real and don't reflect our actual customers, tiers, or product.
+Flagging this as a general note: any copy not explicitly covered in this list should still be checked against our actual
+pricing tiers (Independent / Midsize / Franchise), V1 feature set, and supported auctions before it ships — we don't
+want additional fabricated claims beyond the ones called out above. 
+LogicLot.ai — Internal change request — Confidential 

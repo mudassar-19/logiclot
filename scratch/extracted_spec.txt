@@ -1,0 +1,444 @@
+LOGICLOT.AI
+Internal Feature Spec  —  Confidential
+Retail Market Value Engine
+MarketCheck API Integration — Announcement Auto-Detection — Bank Book Value Badge
+Prepared for
+Developer Handoff
+Spec version
+V1 — April 2026
+Product area
+Buy List • Run List Analysis
+
+
+Background: What This Document Is For
+This spec covers three separate but related features that all touch how LogicLot calculates and displays retail market value on the Buy List. You do not need to understand the car dealership business in detail — this document explains all the domain concepts you need as you go. Read Section 1 first; it provides essential context before diving into the technical work.
+
+IMPORTANT — Why retail value matters in this product
+LogicLot helps car dealers decide which vehicles to buy at auction. The single most important number on every car card is the retail value — what the dealer can sell the car for at their lot. Every other number (max bid, profit potential) flows directly from this value. If retail value is wrong, the dealer makes bad buying decisions. Accuracy is the whole product.
+
+The three features in this spec are:
+Section 2: How to retrieve retail market value from MarketCheck’s API (this replaces any reliance on MMR or wholesale values from auction run lists).
+Section 3: How to detect and display vehicle announcements (e.g. salvage title, rebuilt title, TMU) that come embedded in run lists from CarMax, IAAI, and ADESA — and how these feed into the existing flag adjustment system.
+Section 4: A new “Bank Lendable” badge feature that flags vehicles that banks are likely to finance, which is valuable information for the dealer’s customer.
+
+
+Section 1 — Domain Context (Read First)
+If you are not familiar with how car dealers buy inventory, this section explains the concepts you need to build this correctly.
+
+1.1 — What is an Auction Run List?
+Car dealers buy used vehicles at wholesale auctions. Before the auction, the auction house publishes a “run list” — a spreadsheet or PDF listing every vehicle that will be available. Run lists come from several auction companies: Manheim, ADESA, IAAI (Insurance Auto Auctions), and CarMax auctions.
+Each row on a run list is one vehicle and includes: VIN (a 17-character ID unique to every car), year/make/model/trim, mileage, condition grade, and announced problems (called “announcements” or “As-Is items”). The dealer uploads this file to LogicLot, and LogicLot analyzes every car and ranks them by profit potential.
+
+1.2 — What is Retail Value vs Wholesale Value?
+There are two kinds of car values dealers care about:
+
+Value type
+What it means
+Used for
+Retail value
+What a dealer can sell the car for to a regular customer at their lot. This is a dealership-to-consumer price.
+LogicLot’s primary valuation. This is what we must get from MarketCheck.
+Wholesale / MMR value
+What dealers pay each other for cars at auction. MMR (Manheim Market Report) is a commonly used wholesale index. This is a dealer-to-dealer price, always lower than retail.
+NOT what we want. Run lists often include MMR. We explicitly ignore it. It doesn’t tell the dealer what they can sell the car for.
+
+WHY WE NEVER USE MMR
+MMR tells a dealer what other dealers are paying for a car at auction. It does not tell them what they can sell it for to a customer. Using MMR as the retail value would make our profit estimates wrong. LogicLot’s value is the retail-side analysis. Always pull retail value from MarketCheck, never from any field on the auction run list.
+
+1.3 — What are Announcements?
+Auction houses let sellers “announce” known problems with a vehicle before it sells. When a car has an announcement, it means there is a documented issue that affects its value. Examples of common announcements:
+
+Announcement
+Plain English meaning
+Salvage title
+The car was declared a total loss by an insurance company. It was badly damaged (accident, flood, fire). Only certain buyers can finance or insure these. Big value drop.
+Rebuilt / Reconstructed title
+The car was a salvage car, was repaired, and passed a state inspection to get back on the road. Still carries a stigma. Lower value than clean title.
+Major accident
+The car had a significant collision. Has been repaired but has a reported accident in its history.
+Lemon Buyback
+The manufacturer repurchased the car because it had recurring defects under lemon law. Carries buyer stigma even after repairs.
+TMU (True Miles Unknown)
+The odometer reading cannot be verified. Mileage may have been rolled back or the car had a replacement cluster. Unknown wear = higher risk.
+As-Is / No Arbitration
+The seller is selling the car exactly as it sits with no right to return it. Usually means something is seriously wrong.
+Frame damage
+The structural frame of the car was damaged. Even if repaired, this reduces value and safety confidence.
+
+The existing flag adjustment spec (already in the developer’s hands) describes how selecting flags adjusts the retail value and max bid on the buy list card. This spec (Section 3) covers how to detect these announcements automatically from uploaded run lists, so the buyer does not have to enter them manually.
+
+1.4 — What is a “Bank Lendable” Vehicle?
+When a dealer sells a car to a customer, most customers need a car loan. The customer goes to a bank or credit union, and the bank decides whether to lend money for that specific vehicle. Banks will NOT lend on certain types of cars. If a dealer buys a car that no bank will finance, they can only sell it for cash — a much smaller pool of buyers.
+A “bank lendable” vehicle is one that most standard lenders will approve for financing. The main disqualifiers are: salvage title, rebuilt title, age, high mileage, or a vehicle value that is too low.
+This badge gives the dealer a quick visual signal: “this car is financeable, which means I have a larger buyer pool when I go to resell it.”
+
+
+Section 2 — Retail Market Value: MarketCheck API
+This section specifies how to retrieve retail market value from MarketCheck’s API. This value must be used as the primary retail value on every car card in the Buy List. No value from the run list (MMR, condition-adjusted price, auction estimate) should be used in place of this.
+
+2.1 — Which Endpoint to Use
+Use the MarketCheck Price™ API. This is MarketCheck’s ML-powered retail price prediction endpoint. It is trained on 4+ million recently sold dealer listings and retrained weekly. It returns a predicted retail market price based on VIN, mileage, dealer type, and location.
+
+USE PREMIUM TIER
+Use the Premium tier endpoint. This returns comparable vehicle data (up to 1,000 real active listings) in addition to the price prediction. The comparables are useful for validating the prediction and may be used in future features. Do not use the Base tier (no comparables) or the Premium Plus tier (overkill, higher cost) for V1.
+
+Endpoint
+GET https://api.marketcheck.com/v2/predict/car/us/marketcheck_price/comparables
+
+Required Parameters
+Parameter
+Value and notes
+api_key
+Your MarketCheck API key. Store in environment variable MARKETCHECK_API_KEY. Never hardcode.
+vin
+The 17-character VIN from the run list row. Required. Validates to 17 chars before calling.
+miles
+Current mileage from the run list row. Integer. Required.
+dealer_type
+Always pass “independent” unless the LogicLot customer profile indicates franchise. Default to “independent” for V1.
+zip
+Use the ZIP code stored in the dealer’s account profile. If not available, use the dealer’s state (2-letter code) with the city field instead.
+is_certified
+Always pass false for auction vehicles. Auction inventory is never certified.
+
+Example Request (JavaScript / axios)
+import axios from 'axios';
+
+async function getRetailValue(vin, miles, dealerZip) {
+  const response = await axios.get(
+    'https://api.marketcheck.com/v2/predict/car/us/marketcheck_price/comparables',
+    {
+      params: {
+        api_key: process.env.MARKETCHECK_API_KEY,
+        vin:         vin,
+        miles:       miles,
+        dealer_type: 'independent',
+        zip:         dealerZip,
+        is_certified: false
+      },
+      headers: { Accept: 'application/json' }
+    }
+  );
+  return response.data.marketcheck_price;  // This is the retail value
+}
+
+2.2 — The Response Field to Use
+The response is a JSON object. Extract the following field as the retail value:
+
+response.data.marketcheck_price   // number — predicted retail price in USD
+
+// Example response (abbreviated):
+{
+  "marketcheck_price": 24750,     // <-- THIS is your retail value
+  "msrp": 29500,
+  "comparables": {
+    "num_found": 847,
+    "stats": {
+      "price": {
+        "mean": 24320,
+        "median": 24100,
+        "std_dev": 1850
+      }
+    }
+  }
+}
+
+Store both marketcheck_price and the comparables.stats.price object in the database. The stats (mean, median, std_dev) will be useful for confidence scoring in future versions.
+
+2.3 — When to Call the API
+Call the MarketCheck Price API once per VIN per run list upload, not per user session. Cache the result in the database keyed on (VIN + miles). Do not re-call if a result already exists for that exact VIN + mileage combination from a run list processed within the last 7 days.
+
+BATCH PROCESSING
+Run lists can have 200 to 2,000+ vehicles. Call the API asynchronously in a background job after the run list is uploaded. Do not block the UI waiting for all calls to complete. Display results progressively as they come in. Show a loading state on cards that are still being priced.
+
+2.4 — Error Handling and Fallback
+Some VINs will fail — API timeout, invalid VIN format, no data for that vehicle. Handle gracefully:
+
+Error condition
+Behavior
+Display on card
+API timeout (>5s)
+Retry once after 2s. If second attempt fails, mark as failed.
+Show “Retail value unavailable” in gray. Do not show a max bid.
+Invalid VIN (not 17 chars, fails checksum)
+Do not call API. Mark as invalid.
+Show “Invalid VIN” warning badge on card.
+No data returned (404 / empty result)
+Log the VIN. Do not retry.
+Show “No pricing data” in gray.
+API key error (401/403)
+Alert admin immediately. Stop batch job.
+Show “Pricing unavailable” across all cards.
+
+2.5 — Database Schema
+Store MarketCheck results in a new table. Do not store the retail value only in memory or in the frontend state.
+
+CREATE TABLE vehicle_retail_values (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  vin               VARCHAR(17)   NOT NULL,
+  miles             INTEGER       NOT NULL,
+  marketcheck_price INTEGER,           -- retail value in whole dollars
+  price_mean        INTEGER,           -- from comparables.stats.price.mean
+  price_median      INTEGER,           -- from comparables.stats.price.median
+  price_std_dev     NUMERIC(10,2),
+  comparables_count INTEGER,           -- num_found
+  fetched_at        TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+  dealer_zip        VARCHAR(10),
+  api_status        VARCHAR(20)   DEFAULT 'success',  -- 'success','no_data','error'
+  UNIQUE (vin, miles)
+);
+
+
+Section 3 — Announcement Auto-Detection from Run Lists
+When a dealer uploads a run list from CarMax, IAAI, or ADESA, certain vehicles will have announcements embedded in the file. These announcements map directly to the five flags defined in the history report flag adjustment spec (Salvage, Rebuilt, Major Accident, Lemon Buyback, TMU). This section defines how to detect those announcements and pre-populate the flags on the buy list card automatically.
+
+CRITICAL: PRE-POPULATE, DO NOT AUTO-APPLY TO MAX BID
+When an announcement is detected, the flag should appear as selected on the card so the buyer can see it immediately. HOWEVER, the retail value and max bid must NOT automatically adjust until the buyer confirms the flag. Show the flag as active/highlighted, but leave the math unchanged until the user explicitly clicks to accept the adjustment. This preserves buyer decision ownership. (This is an extension of the rule from the existing flag spec: announcements are CarMax / auction sourced, not the buyer’s manual entry.)
+
+3.1 — Announcement Field Locations by Source
+Each auction source puts announcement data in a different column or field. Below is the mapping for the three sources.
+
+CarMax Run Lists
+CarMax run lists are typically delivered as structured CSVs. Announcements appear in one or more of these columns:
+
+CSV column name (or close variant)
+What to look for
+Announcement, Condition, Notes, As-Is
+Free text or comma-separated codes. Look for keywords (see Section 3.2).
+Title
+May contain values like: SALVAGE, REBUILT, RECONSTRUCTED, CLEAN. Parse this field directly.
+Frame Damage
+If present and not empty or N, treat as a frame damage flag (informational for now, not in the 5-flag system, but surface it as a warning).
+
+IAAI (Insurance Auto Auctions) Run Lists
+IAAI run lists are insurance salvage auctions. The vast majority of vehicles will have title brands. Key fields:
+
+Field name
+What to look for
+Title/Brand, Loss Type, Damage Type
+IAAI frequently uses codes. Map these codes (see Section 3.2).
+Odometer Brand
+Look for “TMU”, “Not Actual”, “Exempt”. All should trigger the TMU flag.
+Highlights, Auction Announcement
+Free text. Scan for keywords.
+
+ADESA Run Lists
+ADESA exports as CSV or PDF. For CSV:
+
+Field name
+What to look for
+CR Grade, Condition Report, Announcements
+Free text. Scan for keywords.
+Title Code, Title Type
+Direct title brand field. Values include: SLV, SAL, REB, CLN, etc.
+Odometer, Odometer Brand
+Same as IAAI — TMU, Not Actual, etc.
+
+3.2 — Keyword and Code Mapping
+Use case-insensitive matching. Strip punctuation before matching. If any of the following keywords appear in the relevant fields above, trigger the corresponding flag.
+
+Flag
+Adjustment
+Match these keywords or codes (case-insensitive)
+Salvage
+-30% (Title group)
+salvage, slv, sal, total loss, totaled, junk, flood total, fire total, storm total, hail total
+Rebuilt / Reconstructed
+-25% (Title group)
+rebuilt, reconstructed, rebuildable, reb, prior salvage, previously salvage
+Major Accident
+-10% (Stackable)
+major accident, prior major damage, structural damage, frame damage, airbag deployment
+Lemon Buyback
+-15% (Stackable)
+lemon, lemon buyback, manufacturer buyback, buyback, state lemon
+TMU (True Miles Unknown)
+-25% (Stackable)
+tmu, true miles unknown, not actual miles, odometer exempt, mileage exempt, exempt, odometer discrepancy, not actual
+
+3.3 — Display Behavior for Auto-Detected Announcements
+When one or more flags are detected from the run list source data, display them on the buy list card as follows:
+
+Show a yellow warning badge on the card labeled “Announcement” with the number of detected flags (e.g. “Announcement: 2”).
+Inside the flag selector (same UI from the flag spec), show the detected flags in a highlighted/pending state — visually distinct from manually selected flags.
+Show a one-line note: “Auction-reported: [flag name(s)]. Tap to apply adjustment.”
+Retail value and max bid do NOT change until the buyer taps to confirm.
+When the buyer taps to confirm, the flag activates, the retail value adjusts per the existing flag spec rules, and the confirmed flag state replaces the pending state.
+The buyer can also dismiss the flag (mark as “not applicable”) if they believe the announcement is incorrect.
+
+3.4 — Database Schema
+CREATE TABLE vehicle_announcements (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  run_list_id    UUID NOT NULL REFERENCES run_lists(id),
+  vin            VARCHAR(17) NOT NULL,
+  source         VARCHAR(20) NOT NULL,  -- 'carmax', 'iaai', 'adesa', 'manheim'
+  raw_text       TEXT,                  -- original text from the announcement field
+  detected_flags TEXT[],               -- array: ['salvage','tmu'] etc
+  confirmed_flags TEXT[],              -- flags the buyer has explicitly confirmed
+  dismissed_flags TEXT[],              -- flags the buyer dismissed
+  created_at     TIMESTAMPTZ DEFAULT NOW()
+);
+
+
+Section 4 — Bank Lendable Badge
+This section defines a new badge feature for the buy list card. The badge indicates whether a vehicle is likely to be approved for standard bank financing when the dealer sells it to a retail customer.
+
+WHY THIS MATTERS TO A DEALER
+Most car buyers need a loan. If a dealer buys a car that banks won’t lend on, they can only sell it to cash buyers. That dramatically shrinks their buyer pool and makes the car harder to sell. Knowing up front that a car is bank-lendable helps the dealer buy with confidence in their resale exit. It is not a guarantee — it is a smart pre-screening signal.
+
+4.1 — What “Bank Lendable” Means (Domain Explanation)
+Banks use a concept called Loan-to-Value (LTV) to decide whether to lend on a car. LTV is the loan amount divided by the vehicle’s retail value. Most standard lenders (banks and credit unions) will not lend on vehicles that fail any of the following screens:
+
+Salvage or rebuilt title — most standard lenders refuse entirely
+Vehicle age over 10 years — many lenders have a cutoff
+Vehicle mileage over 150,000 miles — common lender hard limit
+Vehicle retail value below $4,000 — too low to bother underwriting
+Frame damage announced — structural damage creates insurance and value uncertainty
+
+If a vehicle passes all of these screens, it is considered bank lendable. This does not guarantee any specific loan approval — the buyer’s credit score, income, and debt also matter. But the vehicle itself would not be the reason for denial.
+
+4.2 — The Formula (Pseudocode)
+// Input: single vehicle record from buy list
+// Returns: boolean (true = bank lendable)
+
+function isBankLendable(vehicle) {
+  const {
+    titleStatus,       // string: 'clean', 'salvage', 'rebuilt', 'lemon', 'other'
+    modelYear,         // integer: e.g. 2018
+    miles,             // integer: current odometer
+    retailValue,       // integer: marketcheck_price
+    announcements,     // array of detected flag strings
+    hasFrameDamage     // boolean: from announcement detection
+  } = vehicle;
+
+  const currentYear = new Date().getFullYear();
+  const vehicleAge  = currentYear - modelYear;
+
+  // Hard disqualifiers — any single one = NOT lendable
+  if (titleStatus === 'salvage')                    return false;
+  if (titleStatus === 'rebuilt')                    return false;
+  if (vehicleAge > 10)                              return false;
+  if (miles > 150000)                               return false;
+  if (retailValue < 4000)                           return false;
+  if (hasFrameDamage)                               return false;
+
+  // Passed all screens
+  return true;
+}
+
+TITLE STATUS INPUT
+The titleStatus field must be set during run list parsing (Section 3). If a Salvage or Rebuilt announcement is detected, set titleStatus accordingly. If no title announcement is detected, default to 'clean'. If the announcement field contains an unrecognized title type, default to 'other' and treat as non-lendable to be conservative.
+
+4.3 — Display: The Badge
+The bank lendable badge appears on the buy list card. Rules:
+
+State
+Display
+Lendable = true
+Show a green badge labeled “Bank Lendable” with a checkmark icon. Position next to the vehicle title/header area on the card.
+Lendable = false
+Do not show the badge at all. The absence of the badge is the signal. Do not show a red “Not Lendable” badge — that creates visual clutter on cards that may still be good buys.
+Retail value not yet loaded
+Do not show the badge until retailValue is available. If pending, no badge.
+Title unknown
+Treat as non-lendable. No badge.
+
+NO RED BADGE
+Do not display a negative version of this badge. Many great buys are not bank-lendable (e.g. a salvage BMW that a cash buyer or specialty lender will take). Showing a red “Not Lendable” badge would discourage good decisions. The green badge is additive information. Its absence is neutral.
+
+4.4 — Lendable Thresholds Table (Constants)
+Bake these in as constants. Do not make them user-configurable in V1.
+
+Constant
+Value
+Reason
+MAX_VEHICLE_AGE_YEARS
+10
+Most standard banks (Chase Auto, Cap One, etc.) cap financing at 10 model years old.
+MAX_MILEAGE
+150000
+Common hard cap across major lenders. Above this, loan risk spikes.
+MIN_RETAIL_VALUE
+4000
+Minimum vehicle value most banks will underwrite. Below this, it’s a cash-only transaction.
+SALVAGE_DISQUALIFIES
+true
+No standard lender finances salvage title. Hard rule.
+REBUILT_DISQUALIFIES
+true
+Most standard lenders do not finance rebuilt titles. A small number of specialty lenders will, but we default to disqualified.
+FRAME_DAMAGE_DISQUALIFIES
+true
+Frame damage creates insurance and structural risk that standard lenders avoid.
+
+4.5 — Database Column
+Add a computed/stored column to the existing vehicle records table, or store in a separate field on the buy list vehicle record:
+
+ALTER TABLE buy_list_vehicles ADD COLUMN is_bank_lendable BOOLEAN;
+
+-- Compute and store when retail value is retrieved and
+-- announcement parsing is complete for the vehicle.
+-- Re-evaluate if the buyer confirms a title flag.
+
+
+Section 5 — Integration Sequence (Putting It All Together)
+This section describes the full processing pipeline from upload to rendered buy list card, incorporating all three features above.
+
+Step
+Action
+Notes
+1
+Dealer uploads run list (CSV or PDF)
+Existing flow. No change.
+2
+Parse run list rows into vehicle records
+Extract: VIN, year, make, model, miles, and all announcement/condition fields.
+3
+Announcement detection (Section 3)
+For each vehicle row, scan announcement fields using keyword map. Write detected_flags to vehicle_announcements table.
+4
+Set title status
+Based on detected flags: salvage → 'salvage', rebuilt → 'rebuilt', else 'clean'.
+5
+Call MarketCheck Price API (Section 2)
+Background job, async. One call per VIN. Store result in vehicle_retail_values. Handle errors per Section 2.4.
+6
+Compute is_bank_lendable (Section 4)
+Run formula once retail value is back and title status is set. Store result.
+7
+Render buy list card
+Show: retail value, max bid (from existing formula), bank lendable badge if true, announcement badge if detected_flags not empty.
+8
+Buyer reviews and confirms flags
+Buyer taps announcement → confirms or dismisses. On confirm: retail value adjusts per flag spec, is_bank_lendable recomputes.
+
+RE-EVALUATE BANK LENDABLE AFTER FLAG CONFIRMATION
+If a buyer confirms a salvage or rebuilt flag (from Section 3), immediately rerun isBankLendable() and update the card. If it was previously lendable but the confirmed flag disqualifies it, remove the green badge. This keeps the badge accurate at all times.
+
+
+Section 6 — Acceptance Criteria
+This spec is complete when all of the following are true.
+
+6.1 — MarketCheck Retail Value
+Every vehicle on the buy list has its retail value sourced from MarketCheck’s Price API, not from any field in the uploaded run list.
+The retail value displayed on the card matches marketcheck_price from the API response.
+Calls are made asynchronously — the UI does not block while waiting.
+Errors are handled gracefully — failed VINs show an appropriate no-data state, not a crash or blank.
+Results are cached in the database and not re-fetched unnecessarily.
+
+6.2 — Announcement Auto-Detection
+Run lists from CarMax, IAAI, and ADESA are scanned for announcement keywords on upload.
+Detected flags are stored in vehicle_announcements.
+Cards with detected flags show a yellow “Announcement” badge with a count.
+Detected flags appear in the flag selector in a pending/highlighted state.
+Retail value and max bid do NOT change on detection alone — only after buyer confirmation.
+Buyer can confirm or dismiss each flag. Confirmed flags trigger the adjustment per the existing flag spec.
+
+6.3 — Bank Lendable Badge
+A green “Bank Lendable” badge appears on cards where isBankLendable() returns true.
+No badge appears when the vehicle is not lendable — no red version.
+The badge does not appear until retail value and title status are available.
+The badge recalculates and updates when a buyer confirms a title flag.
+The six disqualifier constants (age, mileage, value, salvage, rebuilt, frame damage) are baked in and not editable in V1.
+
+LogicLot.ai  —  Internal Feature Spec  —  Confidential

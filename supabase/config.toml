@@ -1,0 +1,25 @@
+project_id = "xzjeupbenyqkqoeuvxwy"
+
+[functions.generate-insights]
+verify_jwt = false
+
+[functions.contact-form]
+verify_jwt = false
+
+[functions.extract-channel-data]
+verify_jwt = false
+
+[functions.dashboard-chat]
+verify_jwt = false
+
+[functions.parse-run-list]
+verify_jwt = false
+
+[functions.enrich-vehicles]
+verify_jwt = false
+
+[functions.update-retail-values]
+verify_jwt = false
+
+[functions.generate-vehicle-insight]
+verify_jwt = false

@@ -1,0 +1,50 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+.env
+.env.development
+.env.local
+.env.*.local
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Backups
+*.zip
+
+# Temporary CLI and Scratch files
+supabase/.temp/
+scratch/
+*.timestamp-*.mjs
+
+# Temporary developer test/output directories
+newfiles/
+test_files/
+
+# Production env files
+.env.production
+.env.production.local
+
+# OS system files
+Thumbs.db
+desktop.ini
+
+# AI Agent config files
+.agents/

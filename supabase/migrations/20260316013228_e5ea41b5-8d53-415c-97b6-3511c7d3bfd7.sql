@@ -1,0 +1,1 @@
+ALTER TABLE public.auction_run_lists ADD COLUMN IF NOT EXISTS parse_error text;
